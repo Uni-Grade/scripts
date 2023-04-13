@@ -88,11 +88,12 @@ func startWorkflow(in repo: String, with issuerID: String, _ privateKeyID: Strin
         .post(buildRunCreateRequest)
     
     print("About to make request")
-    _ = try await provider.request(workflowRun)
+    let result = try await provider.request(workflowRun)
+    print("Request Made - Starting XCode Cloud Build")
+    print(result)
 }
 
 print(CommandLine.arguments)
 assert(CommandLine.arguments.count == 4)
 
-try? await startWorkflow(in: "UniGrade", with: CommandLine.arguments[1], CommandLine.arguments[2], CommandLine.arguments[3])
-print("Request Made - Starting XCode Cloud Build")
+try await startWorkflow(in: "UniGrade", with: CommandLine.arguments[1], CommandLine.arguments[2], CommandLine.arguments[3])
