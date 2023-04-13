@@ -10,13 +10,15 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
-
+  release:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: macos-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Build
-      run: |
-        cd TrigBuild
-        swift build -v
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.run_number }}
+          release_name: v.1.${{ github.run_number }}
