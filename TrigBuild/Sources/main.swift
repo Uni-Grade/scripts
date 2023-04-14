@@ -16,20 +16,26 @@ struct WorkflowsResponse: Decodable {
     }
 }
 
-
 func startWorkflow(in repo: String, with issuerID: String, _ privateKeyID: String, _ privateKey: String) async throws {
+    print("Starting process")
     let config = APIConfiguration(
         issuerID: issuerID,
-        privateKeyID: issuerID,
-        privateKey: privateKeyID)
+        privateKeyID: privateKeyID,
+        privateKey: privateKey)
     let provider = APIProvider(configuration: config)
+
+    print("Config & Provider Generated")
 
     let producstEndpoint = APIEndpoint
         .v1
         .ciProducts
         .get(parameters: .init(filterProductType: [.app], include: [.primaryRepositories]))
 
+    print("Created Endpoint")
+
     let productResponse = try await provider.request(producstEndpoint)
+
+    print("Provider Response Recieved")
     
     guard let repositoryId: String = productResponse
         .included?
@@ -42,9 +48,9 @@ func startWorkflow(in repo: String, with issuerID: String, _ privateKeyID: Strin
         })
             .first,
           
-        let productId = productResponse.data.first(where: {
-            $0.relationships?.primaryRepositories?.data?.contains { $0.id == repositoryId } == true
-        })?.id else { return }
+    let productId = productResponse.data.first(where: {
+        $0.relationships?.primaryRepositories?.data?.contains { $0.id == repositoryId } == true
+    })?.id else { return }
     
     let allWorkflowsEndpoint = APIEndpoint
             .v1
@@ -53,13 +59,29 @@ func startWorkflow(in repo: String, with issuerID: String, _ privateKeyID: Strin
             .relationships
             .workflows
 
-    let workflows = try await provider
+    var workflows: WorkflowsResponse
+
+    do {
+        workflows = try await provider
         .request(
             Request<WorkflowsResponse>(
                 method: "GET",
                 path: allWorkflowsEndpoint.path
             )
         )
+        print("Workflow Response Recieved")
+    } catch APIProvider.Error.requestFailure(let statusCode, let errorResponse, _) {
+        print("Request failed with statuscode: \(statusCode) and the following errors:")
+        errorResponse?.errors?.forEach({ error in
+            print("Error code: \(error.code)")
+            print("Error title: \(error.title)")
+            print("Error detail: \(error.detail)")
+        })
+        exit(1)
+    } catch {
+        print("Something went wrong: \(error.localizedDescription)")
+        exit(1)
+    }
     
     guard let workflowId = workflows.data.first?.id else {
             return
@@ -71,7 +93,25 @@ func startWorkflow(in repo: String, with issuerID: String, _ privateKeyID: Strin
         .id(workflowId)
         .get()
 
-    let workflow = try await provider.request(workflowEndpoint).data
+    let workflow: CiWorkflow
+
+    do {
+        workflow = try await provider.request(workflowEndpoint).data
+        print("Workflow Endpoint Recieved")
+    } catch APIProvider.Error.requestFailure(let statusCode, let errorResponse, _) {
+        print("Request failed with statuscode: \(statusCode) and the following errors:")
+        errorResponse?.errors?.forEach({ error in
+            print("Error code: \(error.code)")
+            print("Error title: \(error.title)")
+            print("Error detail: \(error.detail)")
+        })
+        exit(1)
+    } catch {
+        print("Something went wrong: \(error.localizedDescription)")
+        exit(1)
+    }
+
+    print("Workflow Endpoint Recieved")
     
     let requestRelationships = CiBuildRunCreateRequest
         .Data
@@ -88,9 +128,20 @@ func startWorkflow(in repo: String, with issuerID: String, _ privateKeyID: Strin
         .post(buildRunCreateRequest)
     
     print("About to make request")
-    let result = try await provider.request(workflowRun)
-    print("Request Made - Starting XCode Cloud Build")
-    print(result)
+    do {
+        try await provider.request(workflowRun)
+        print("Request Made - Starting XCode Cloud Build")
+    } catch APIProvider.Error.requestFailure(let statusCode, let errorResponse, _) {
+        print("Request failed with statuscode: \(statusCode) and the following errors:")
+        errorResponse?.errors?.forEach({ error in
+            print("Error code: \(error.code)")
+            print("Error title: \(error.title)")
+            print("Error detail: \(error.detail)")
+        })
+        exit(1)
+    } catch {
+        print("Decoding error but this usually is sucessful at making the call anyway")
+    }
 }
 
 print(CommandLine.arguments)
